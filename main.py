@@ -1,10 +1,14 @@
+import argparse
 import os
-import json
 import requests
+import sys
 import time
 from datetime import datetime
 
 SLACK_PROFILE_URI = 'https://slack.com/api/users.profile'
+DEFAULT_SLEEP = 300
+DEFAULT_CURRENCY = 'bitcoin'
+DEFAULT_EMOJI = ':bitcoin:'
 
 
 def load_credentials(file):
@@ -61,12 +65,12 @@ def set_status(token, status):
     return status
 
 
-def run():
+def run(currency, time_interval, emoji):
     token = load_credentials('~/.credentials/slack_legacy_token')
 
     while True:
         try:
-            btc_price = requests.get('https://api.coinmarketcap.com/v1/ticker/bitcoin').json()[0]['price_usd']
+            btc_price = requests.get(f'https://api.coinmarketcap.com/v1/ticker/{currency}').json()[0]['price_usd']
             fmt_price = f'{float(btc_price):.2f}'
             print('{} USD @ {}'.format(
                 fmt_price,
@@ -74,16 +78,51 @@ def run():
             ))
 
             status = {
-                'status_text': '{} USD'.format(fmt_price),
-                'status_emoji': ':bitcoin:',
+                'status_text': f'{fmt_price} USD',
+                'status_emoji': f'{emoji}',
             }
             set_status(token, status)
         except requests.ConnectionError as e:
             print(e)
             pass
 
-        time.sleep(300)
+        time.sleep(time_interval)
+
+
+def parse_args(argv):
+    parser = argparse.ArgumentParser(
+        description='Select sleep interval and currency to look up.'
+    )
+    parser.add_argument(
+        '--time',
+        '-t',
+        action='store',
+        type=int,
+        default=DEFAULT_SLEEP,
+        dest='time_interval',
+        help='Set the wait period (in seconds) between lookups. Setting this too low (may get you rate limited by the CMC API.',
+    )
+    parser.add_argument(
+        '--currency',
+        '-c',
+        action='store',
+        default=DEFAULT_CURRENCY,
+        dest='currency',
+        help='Set the currency to look up. This should correspond to a coinmarketcap symbol, e.g. "bitcoin" for https://coinmarketcap.com/currencies/bitcoin/',
+    )
+    parser.add_argument(
+        '--emoji',
+        '-e',
+        action='store',
+        default=DEFAULT_EMOJI,
+        dest='emoji',
+        help='Set the desired emoji to add to the slack status, if any. e.g. ":bitcoin:" or ":face_horse:"',
+    )
+    return parser.parse_args(argv[1:])
+
 
 if __name__ == '__main__':
-    run()
+
+    args = parse_args(sys.argv)
+    run(**vars(args))
 
