@@ -1,6 +1,8 @@
 import os
 import json
 import requests
+import time
+from datetime import datetime
 
 SLACK_PROFILE_URI = 'https://slack.com/api/users.profile'
 
@@ -8,6 +10,7 @@ SLACK_PROFILE_URI = 'https://slack.com/api/users.profile'
 def load_credentials(file):
     """Read in a legacy token"""
 
+    creds_path = file
     if not os.path.exists(file):
         try:
             creds_path = os.path.expanduser(file)
@@ -58,5 +61,29 @@ def set_status(token, status):
     return status
 
 
+def run():
+    token = load_credentials('~/.credentials/slack_legacy_token')
 
+    while True:
+        try:
+            btc_price = requests.get('https://api.coinmarketcap.com/v1/ticker/bitcoin').json()[0]['price_usd']
+            fmt_price = f'{float(btc_price):.2f}'
+            print('{} USD @ {}'.format(
+                fmt_price,
+                datetime.now()
+            ))
+
+            status = {
+                'status_text': '{} USD'.format(fmt_price),
+                'status_emoji': ':bitcoin:',
+            }
+            set_status(token, status)
+        except requests.ConnectionError as e:
+            print(e)
+            pass
+
+        time.sleep(300)
+
+if __name__ == '__main__':
+    run()
 
